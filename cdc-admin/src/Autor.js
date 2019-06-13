@@ -2,6 +2,8 @@ import React, { Component } from 'react';
 import $ from 'jquery';
 import InputCustomizado from './components/InputCustomizado';
 import SubmitCustomizado from './components/SubmitCustomizado';
+import PubSub from 'pubsub-js';
+import TratadorErros from './TratadorErros';
 
 class FormularioAutor extends Component {
     constructor() {
@@ -22,11 +24,17 @@ class FormularioAutor extends Component {
           dataType: 'json',
           type: 'post',
           data: JSON.stringify({nome:this.state.nome, email:this.state.email, senha:this.state.senha}),
-          success: function(resposta) {
-            this.props.callBackListagem(resposta);
+          success: function(novaListagem) {
+            PubSub.publish('atualiza-lista', novaListagem);
+            this.setState({nome:'', email:'', senha:''})
           }.bind(this),
           error: function(resposta) {
-            console.log("erro");
+            if(resposta.status === 400){
+                new TratadorErros().publicaErros(resposta.responseJSON);
+            }
+          },
+          beforeSend: function() {
+              PubSub.publish('limpa-erros');
           }
         });
       }
@@ -90,7 +98,6 @@ export default class AutorBox extends Component {
     constructor() {
         super();
         this.state = {lista: []};
-        this.callBackListagem = this.callBackListagem.bind(this);
     }
     
     componentDidMount(){
@@ -101,16 +108,16 @@ export default class AutorBox extends Component {
                 this.setState({lista:resposta});
             }.bind(this)
         })
+
+        PubSub.subscribe('atualiza-lista', function(topico, novaLista) {
+            this.setState({lista:novaLista});
+        }.bind(this));
     }
 
-    callBackListagem(novaLista) {
-        this.setState({lista: novaLista});
-    }
-    
     render() {
         return(
             <div>
-                <FormularioAutor callBackListagem={this.callBackListagem}/>
+                <FormularioAutor/>
                 <ListaAutores lista={this.state.lista}/>
             </div>
         );
